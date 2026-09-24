@@ -44,9 +44,9 @@ using only public AppKit, Core Graphics, and Accessibility APIs.
 - Visible eligibility is conservative: an Accessibility window must match a
   current-Space, on-screen Core Graphics window by PID and bounds.
 - Native-fullscreen windows are excluded using `AXFullScreen`.
-- Public APIs do not expose a minimized window's Space. Minimized windows remain
-  listed so restoration can be tested, with that uncertainty shown in the menu.
-  Scenes does not switch Spaces itself.
+- Public APIs do not expose a minimized window's Space, so fresh enumeration
+  excludes minimized windows. A selected live window can still be observed and
+  restored after it minimizes. Scenes does not switch Spaces itself.
 - Failed or unsupported Accessibility operations are reported in the menu and
   are not retried continuously.
 

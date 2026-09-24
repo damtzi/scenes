@@ -29,16 +29,15 @@ PASS move selected window; sibling unchanged
 PASS resize selected window; sibling unchanged
 PASS raise and focus selected window
 PASS minimize and restore selected window
+PASS native-fullscreen and other-Space windows excluded without retrieval
 PASS observed focus/minimize/restore/closure events
 PASS same-app sibling remained usable and unchanged
 ```
 
-Native-fullscreen windows are excluded by their Accessibility fullscreen state.
-Non-minimized other-Space windows are excluded because the Core Graphics
-on-screen list contains only the current Space; the proof never switches Spaces
-to retrieve one. Enumeration used these real APIs, but this smoke run did not
-create an excluded second-Space window or enter native fullscreen; those cases
-remain manual checks before depending on broader compatibility.
+The smoke made `a.txt` native-fullscreen, which placed it on a fullscreen Space.
+Enumeration excluded it by Accessibility fullscreen state and excluded `b.txt`
+because it remained on the previous Space. Enumeration did not switch Spaces to
+retrieve either window. The smoke then exited fullscreen before closing `a.txt`.
 
 ## API findings
 
@@ -50,8 +49,9 @@ remain manual checks before depending on broader compatibility.
   the attribute or action.
 - Core Graphics can enumerate on-screen windows in the current Space. Public
   APIs provide no Space identifier for minimized windows, so their current-Space
-  membership cannot be established reliably. The proof labels this limitation
-  and does not claim otherwise.
+  membership cannot be established reliably. Fresh enumeration therefore
+  excludes minimized windows. Restoration was validated after retaining a live
+  selected window and then minimizing it.
 - PID plus rounded bounds is used only to establish current-Space visibility;
   the retained Accessibility element performs control. Identically positioned
   same-process windows are therefore ambiguous only at the visibility-filter

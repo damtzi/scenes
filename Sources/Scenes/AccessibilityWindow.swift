@@ -19,6 +19,24 @@ struct AccessibilityWindowState: Equatable {
     let isMinimized: Bool
 }
 
+enum AccessibilityWindowEvent: Equatable {
+    case closed
+    case minimized
+    case restored
+    case focused
+    case focusChanged
+
+    var statusText: String {
+        switch self {
+        case .closed: "Observed: selected window closed"
+        case .minimized: "Observed: selected window minimized"
+        case .restored: "Observed: selected window restored"
+        case .focused: "Observed: selected window focused"
+        case .focusChanged: "Observed: focus changed"
+        }
+    }
+}
+
 enum WindowControlError: LocalizedError {
     case accessibilityDenied
     case attribute(String, AXError)
@@ -41,7 +59,7 @@ enum WindowControlError: LocalizedError {
 
 @MainActor
 final class AccessibilityWindowController {
-    typealias StatusHandler = (String) -> Void
+    typealias StatusHandler = (AccessibilityWindowEvent) -> Void
 
     private var appObservers: [pid_t: AXObserver] = [:]
     private var observedWindow: AXUIElement?
@@ -83,9 +101,8 @@ final class AccessibilityWindowController {
                 let signature = frame.map { WindowSignature(pid: app.processIdentifier, frame: $0) }
 
                 // Public APIs expose current-Space membership only for visible windows.
-                // Keep minimized windows selectable so restoration can be proven; the UI
-                // labels this limitation rather than pretending their Space is known.
-                guard minimized || signature.map(currentSpaceWindows.contains) == true else { continue }
+                // Exclude unknown-Space minimized windows during fresh enumeration.
+                guard !minimized, signature.map(currentSpaceWindows.contains) == true else { continue }
 
                 results.append(AccessibilityWindow(
                     appName: app.localizedName ?? app.bundleIdentifier ?? "Unknown App",
@@ -139,6 +156,11 @@ final class AccessibilityWindowController {
     func minimize(_ window: AccessibilityWindow) throws {
         try requireTrusted()
         try set(boolean: true, attribute: kAXMinimizedAttribute, on: window.element)
+    }
+
+    func setFullscreen(_ fullscreen: Bool, for window: AccessibilityWindow) throws {
+        try requireTrusted()
+        try set(boolean: fullscreen, attribute: "AXFullScreen", on: window.element)
     }
 
     func close(_ window: AccessibilityWindow) throws {
@@ -215,11 +237,11 @@ final class AccessibilityWindowController {
         MainActor.assumeIsolated {
             switch event {
             case kAXUIElementDestroyedNotification:
-                controller.statusHandler?("Observed: selected window closed")
+                controller.statusHandler?(.closed)
             case kAXWindowMiniaturizedNotification:
-                controller.statusHandler?("Observed: selected window minimized")
+                controller.statusHandler?(.minimized)
             case kAXWindowDeminiaturizedNotification:
-                controller.statusHandler?("Observed: selected window restored")
+                controller.statusHandler?(.restored)
             case kAXFocusedWindowChangedNotification:
                 let focusedElement: AXUIElement? = controller.value(
                     of: kAXFocusedWindowAttribute,
@@ -227,7 +249,7 @@ final class AccessibilityWindowController {
                 )
                 let focused = CFEqual(eventElement.value, controller.observedWindow)
                     || (focusedElement.map { CFEqual($0, controller.observedWindow) } ?? false)
-                controller.statusHandler?(focused ? "Observed: selected window focused" : "Observed: focus changed")
+                controller.statusHandler?(focused ? .focused : .focusChanged)
             default:
                 break
             }

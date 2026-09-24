@@ -13,7 +13,7 @@ enum NativeSmokeTest {
         let sibling = candidates[1]
         let targetBefore = try controller.state(of: target)
         let siblingBefore = try controller.state(of: sibling)
-        var events: [String] = []
+        var events: [AccessibilityWindowEvent] = []
         try controller.observe(target) { events.append($0) }
 
         try controller.move(target, by: CGPoint(x: 23, y: 31))
@@ -35,10 +35,16 @@ enum NativeSmokeTest {
         try requireUnchanged(sibling, expected: siblingBefore, controller: controller)
         print("PASS resize selected window; sibling unchanged")
 
+        try controller.raiseAndFocus(sibling)
+        waitForEvents()
+        events.removeAll()
         try controller.raiseAndFocus(target)
         waitForEvents()
         guard try controller.isFocused(target) else {
             throw WindowControlError.unsupported("Focus verification failed.")
+        }
+        guard events.contains(.focused) else {
+            throw WindowControlError.unsupported("Focus observation failed; events: \(eventText(events))")
         }
         print("PASS raise and focus selected window")
 
@@ -54,17 +60,29 @@ enum NativeSmokeTest {
         }
         print("PASS minimize and restore selected window")
 
+        try controller.setFullscreen(true, for: target)
+        waitForEvents(seconds: 1.5)
+        let fullscreenEligible = try controller.windows()
+        guard !fullscreenEligible.contains(where: { CFEqual($0.element, target.element) }) else {
+            throw WindowControlError.unsupported("Native-fullscreen exclusion failed.")
+        }
+        guard !fullscreenEligible.contains(where: { CFEqual($0.element, sibling.element) }) else {
+            throw WindowControlError.unsupported("Other-Space exclusion failed.")
+        }
+        try controller.setFullscreen(false, for: target)
+        waitForEvents(seconds: 1.5)
+        print("PASS native-fullscreen and other-Space windows excluded without retrieval")
+
         try controller.close(target)
         waitForEvents()
-        guard events.contains("Observed: selected window closed") else {
-            throw WindowControlError.unsupported("Closure observation failed; events: \(events)")
+        guard events.contains(.closed) else {
+            throw WindowControlError.unsupported("Closure observation failed; events: \(eventText(events))")
         }
-        guard events.contains("Observed: selected window minimized"),
-              events.contains("Observed: selected window restored")
+        guard events.contains(.minimized), events.contains(.restored)
         else {
-            throw WindowControlError.unsupported("Minimize observation failed; events: \(events)")
+            throw WindowControlError.unsupported("Minimize observation failed; events: \(eventText(events))")
         }
-        print("PASS observed focus/minimize/restore/closure events: \(events.joined(separator: ", "))")
+        print("PASS observed focus/minimize/restore/closure events: \(eventText(events))")
         try requireUnchanged(sibling, expected: siblingBefore, controller: controller)
         print("PASS same-app sibling remained usable and unchanged")
     }
@@ -79,7 +97,11 @@ enum NativeSmokeTest {
         }
     }
 
-    private static func waitForEvents() {
-        RunLoop.current.run(until: Date(timeIntervalSinceNow: 0.2))
+    private static func waitForEvents(seconds: TimeInterval = 0.2) {
+        RunLoop.current.run(until: Date(timeIntervalSinceNow: seconds))
+    }
+
+    private static func eventText(_ events: [AccessibilityWindowEvent]) -> String {
+        events.map(\.statusText).joined(separator: ", ")
     }
 }

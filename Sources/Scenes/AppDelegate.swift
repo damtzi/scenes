@@ -60,8 +60,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         guard let id = sender.representedObject as? UUID, let window = windows[id] else { return }
         selectedWindow = window
         do {
-            try controller.observe(window) { [weak self] status in
-                self?.statusText = status
+            try controller.observe(window) { [weak self] event in
+                self?.statusText = event.statusText
                 self?.rebuildMenu()
             }
             statusText = "Selected \(window.appName) — \(window.menuTitle)"
@@ -123,9 +123,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             menu.addItem(item("Raise and Focus", action: #selector(raiseSelected), enabled: selectedWindow != nil))
             menu.addItem(item("Restore If Minimized", action: #selector(restoreSelected), enabled: selectedWindow != nil))
             menu.addItem(.separator())
-            let note = NSMenuItem(title: "Minimized windows: current Space cannot be verified", action: nil, keyEquivalent: "")
-            note.isEnabled = false
-            menu.addItem(note)
             menu.addItem(item("Refresh Windows", action: #selector(refresh), key: "r"))
         }
 
